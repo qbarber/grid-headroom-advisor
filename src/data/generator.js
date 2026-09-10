@@ -18,6 +18,11 @@
  * @property {string} name
  * @property {number} ratedCapacityMW
  * @property {number[]} hourlyLoadProfile  8760 values, one per hour of a year
+ * @property {ScenarioDays} scenarioDays  which day-of-year values got which pattern
+ *
+ * @typedef {Object} ScenarioDays
+ * @property {number[]} hotDays   day-of-year values driven by hotSummerPeakPattern
+ * @property {number[]} mildDays  day-of-year values driven by mildDayPattern
  */
 
 const {
@@ -83,6 +88,42 @@ function pickDistinctDays(rng, count, minDay, maxDay) {
 }
 
 /**
+ * Pick the hot-summer-peak and mild days for a scenario.
+ *
+ * Consumes the given rng *in place* — callers that need the exact same profile
+ * afterwards must pass the same rng instance the noise loop will use, and call
+ * this before drawing any noise. `scenarioDaysForSeed()` reproduces the sets
+ * standalone because day-picking is the very first thing to touch the stream.
+ *
+ * @param {() => number} rng
+ * @returns {{ hotDays: Set<number>, mildDays: Set<number> }}
+ */
+function pickScenarioDays(rng) {
+  // A handful of extreme days clustered around the summer peak (mid-July).
+  const hotDays = pickDistinctDays(rng, 5, PEAK_SUMMER_DAY - 8, PEAK_SUMMER_DAY + 8);
+  // Cooler "mild" days scattered across the shoulder seasons and beyond.
+  const mildDays = pickDistinctDays(rng, 45, 0, DAYS_PER_YEAR - 1);
+  // A hot day is never also a mild day.
+  for (const d of hotDays) mildDays.delete(d);
+  return { hotDays, mildDays };
+}
+
+/**
+ * Reconstruct the scenario day sets for a seed, without generating the profile.
+ *
+ * @param {number} [seed=42]
+ * @returns {ScenarioDays}  sorted arrays
+ */
+function scenarioDaysForSeed(seed = 42) {
+  const { hotDays, mildDays } = pickScenarioDays(mulberry32(seed));
+  const asc = (a, b) => a - b;
+  return {
+    hotDays: [...hotDays].sort(asc),
+    mildDays: [...mildDays].sort(asc),
+  };
+}
+
+/**
  * Generate a synthetic substation with a full year of hourly load.
  *
  * @param {Object} [options]
@@ -106,12 +147,7 @@ function generateSubstation(options = {}) {
 
   const rng = mulberry32(seed);
 
-  // A handful of extreme days clustered around the summer peak (mid-July).
-  const hotDays = pickDistinctDays(rng, 5, PEAK_SUMMER_DAY - 8, PEAK_SUMMER_DAY + 8);
-  // Cooler "mild" days scattered across the shoulder seasons and beyond.
-  const mildDays = pickDistinctDays(rng, 45, 0, DAYS_PER_YEAR - 1);
-  // A hot day is never also a mild day.
-  for (const d of hotDays) mildDays.delete(d);
+  const { hotDays, mildDays } = pickScenarioDays(rng);
 
   const hourlyLoadProfile = new Array(HOURS_PER_YEAR);
 
@@ -139,11 +175,19 @@ function generateSubstation(options = {}) {
     hourlyLoadProfile[h] = Math.round(load * 1000) / 1000;
   }
 
-  return { id, name, ratedCapacityMW, hourlyLoadProfile };
+  const asc = (a, b) => a - b;
+  const scenarioDays = {
+    hotDays: [...hotDays].sort(asc),
+    mildDays: [...mildDays].sort(asc),
+  };
+
+  return { id, name, ratedCapacityMW, hourlyLoadProfile, scenarioDays };
 }
 
 module.exports = {
   HOURS_PER_YEAR,
   mulberry32,
   generateSubstation,
+  pickScenarioDays,
+  scenarioDaysForSeed,
 };

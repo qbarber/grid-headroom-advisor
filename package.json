@@ -5,7 +5,8 @@
   "description": "Advisor for evaluating spare capacity (headroom) on electricity grid substations.",
   "main": "src/index.js",
   "scripts": {
-    "generate:sample": "node scripts/generateSample.js"
+    "generate:sample": "node scripts/generateSample.js",
+    "simulate:sample": "node scripts/simulateSample.js"
   },
   "keywords": [
     "grid",
