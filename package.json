@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "generate:sample": "node scripts/generateSample.js",
-    "simulate:sample": "node scripts/simulateSample.js"
+    "simulate:sample": "node scripts/simulateSample.js",
+    "decide:sample": "node scripts/decideSample.js"
   },
   "keywords": [
     "grid",
