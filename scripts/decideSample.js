@@ -1,20 +1,23 @@
 'use strict';
 
 /**
- * Sanity-check script for the agent decision layer (Phase 3).
+ * Sanity-check script for the agent decision + explainability layers
+ * (Phase 3 + Phase 4).
  *
  *   node scripts/decideSample.js
  *
- * Uses the same seeded 100 MW substation as Phase 1/2 and runs the simulator +
- * decision engine against four proposed loads — the 5/15/40 MW cases from
- * scripts/simulateSample.js, plus a 20 MW case added to probe the 1%
- * curtailment boundary. Prints the recommendation and reasoningTrace for each.
- * Console/JSON only — no plain-English explanation (that's Phase 4).
+ * Uses the same seeded 100 MW substation as Phase 1/2 and runs the simulator,
+ * decision engine, and explainability layer against four proposed loads — the
+ * 5/15/40 MW cases from scripts/simulateSample.js, plus a 20 MW case added to
+ * probe the 1% curtailment boundary. Prints the recommendation, reasoningTrace,
+ * explanation, drivingScenarioSummary, and tradeoff for each. Console/JSON
+ * only — no UI (that's Phase 6).
  */
 
 const { generateSubstation } = require('../src/data/generator');
 const { simulateEnvelope } = require('../src/simulation/envelopeSimulator');
 const { decideRecommendation } = require('../src/agent/decisionEngine');
+const { explainRecommendation } = require('../src/agent/explainability');
 
 const substation = generateSubstation({
   id: 'SUB-001',
@@ -41,11 +44,18 @@ for (const testCase of cases) {
 
   const envelopeResult = simulateEnvelope(substation, proposedLoad);
   const decided = decideRecommendation(envelopeResult);
+  const explained = explainRecommendation(decided, {
+    ratedCapacityMW: substation.ratedCapacityMW,
+    scenarioDays: substation.scenarioDays,
+  });
 
   console.log(`\n=== ${testCase.sizeMW} MW proposed load (${testCase.label}) ===`);
-  console.log(`recommendation: ${decided.recommendation}`);
+  console.log(`recommendation: ${explained.recommendation}`);
   console.log('reasoningTrace:');
-  for (const line of decided.reasoningTrace) console.log(`  ${line}`);
+  for (const line of explained.reasoningTrace) console.log(`  ${line}`);
+  console.log(`explanation: ${explained.explanation}`);
+  console.log(`drivingScenarioSummary: ${explained.drivingScenarioSummary}`);
+  console.log(`tradeoff: ${JSON.stringify(explained.tradeoff)}`);
 
   if (testCase.label === 'boundary') {
     console.log(
